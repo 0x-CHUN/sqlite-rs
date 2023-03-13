@@ -1,27 +1,34 @@
+mod result;
+mod statement;
+mod utils;
+
 use std::{io, process};
+use crate::result::{get_meta_result, MetaCommandResult};
+use crate::result::PrepareResult::PrepareUnrecognized;
+use crate::statement::{execute_statement, prepare_statement};
+use crate::utils::{print_prompt, read_line};
 
-fn print_prompt() {
-    println!("Sqlite-Rust > ")
-}
-
-fn read_line() -> String {
-    let mut line = String::new();
-    let bytes_read = io::stdin()
-        .read_line(&mut line)
-        .expect("Failed to read line");
-    if bytes_read < 0 {
-        panic!("Error Reading from input")
-    }
-    String::from(line.trim())
-}
 
 fn main() {
     loop {
+        print_prompt();
         let cmd = read_line();
-        if cmd.eq(".exit") {
-            process::exit(0x0100);
-        } else {
-            println!("Unrecognized command {}", cmd);
+        if cmd.starts_with(".") {
+            let meta_result = get_meta_result(&cmd);
+            match meta_result {
+                MetaCommandResult::MetaCommandUnrecognized => {
+                    println!("Unrecognized command {}", cmd);
+                    continue;
+                }
+                MetaCommandResult::MetaCommandSuccess => continue
+            }
         }
+        let (stmt, prepare_result) = prepare_statement(&cmd);
+        if prepare_result == PrepareUnrecognized {
+            println!("Unrecognized keyword at start of {}.", cmd);
+            continue;
+        }
+        execute_statement(&stmt);
+        // println!("Executed.");
     }
 }
