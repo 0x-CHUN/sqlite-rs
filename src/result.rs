@@ -10,6 +10,7 @@ pub enum MetaCommandResult {
 pub enum PrepareResult {
     PrepareSuccess,
     PrepareUnrecognized,
+    PrepareSyntaxErr,
 }
 
 pub fn get_meta_result(command: &str) -> MetaCommandResult {
@@ -17,4 +18,11 @@ pub fn get_meta_result(command: &str) -> MetaCommandResult {
         process::exit(0x0100);
     }
     MetaCommandResult::MetaCommandUnrecognized
+}
+
+#[derive(PartialEq, Debug)]
+pub enum ExecuteResult {
+    ExecuteSuccess,
+    ExecuteFail,
+    ExecuteTableFull,
 }
