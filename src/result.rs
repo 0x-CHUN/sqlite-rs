@@ -8,9 +8,10 @@ pub enum MetaCommandResult {
 
 #[derive(PartialEq, Debug)]
 pub enum PrepareResult {
-    PrepareSuccess,
     PrepareUnrecognized,
     PrepareSyntaxErr,
+    PrepareStringTooLong,
+    PrepareInvalidId,
 }
 
 pub fn get_meta_result(command: &str) -> MetaCommandResult {

@@ -7,7 +7,7 @@ mod page;
 mod table;
 
 use std::{io, process};
-use crate::result::{get_meta_result, MetaCommandResult};
+use crate::result::{get_meta_result, MetaCommandResult, PrepareResult};
 use crate::result::PrepareResult::*;
 use crate::statement::{execute_statement, prepare_statement};
 use crate::table::Table;
@@ -23,25 +23,28 @@ fn main() {
             let meta_result = get_meta_result(&cmd);
             match meta_result {
                 MetaCommandResult::MetaCommandUnrecognized => {
-                    println!("Unrecognized command {}", cmd);
+                    println!("Unrecognized command : {}", cmd);
                     continue;
                 }
                 MetaCommandResult::MetaCommandSuccess => continue
             }
         }
-        let (stmt, prepare_result) = prepare_statement(&cmd);
-        match prepare_result {
-            PrepareUnrecognized => {
-                println!("Unrecognized keyword at start of {}.", cmd);
+        match prepare_statement(&cmd) {
+            Ok(stmt) => execute_statement(stmt, &mut table),
+            Err(e) => {
+                match e {
+                    PrepareUnrecognized =>
+                        println!("Unrecognized command : {}.", cmd),
+                    PrepareSyntaxErr =>
+                        println!("Syntax error : {}.", cmd),
+                    PrepareStringTooLong =>
+                        println!("Too long string"),
+                    PrepareInvalidId =>
+                        println!("Invalid id"),
+                };
                 continue;
             }
-            PrepareSyntaxErr => {
-                println!("Syntax error : {}.", cmd);
-                continue;
-            }
-            PrepareSuccess => {
-                execute_statement(stmt, &mut table);
-            }
-        }
+        };
+        println!("Executed.")
     }
 }

@@ -1,5 +1,6 @@
-use crate::constant::{ROWS_PER_PAGE, TABLE_MAX_ROWS};
+use crate::constant::{EMAIL_SIZE, ROWS_PER_PAGE, TABLE_MAX_ROWS, USERNAME_SIZE};
 use crate::result::{ExecuteResult, PrepareResult};
+use crate::result::PrepareResult::{PrepareInvalidId, PrepareStringTooLong, PrepareSyntaxErr, PrepareUnrecognized};
 use crate::row::Row;
 use crate::table::Table;
 
@@ -16,43 +17,41 @@ pub struct Statement {
 }
 
 
-pub fn prepare_statement(command: &str) -> (Box<Option<Statement>>, PrepareResult) {
-    let mut stmt = if command.starts_with("insert") {
+pub fn prepare_statement(command: &str) -> Result<Box<Option<Statement>>, PrepareResult> {
+    if command.starts_with("insert") {
         let args: Vec<&str> = command.split(" ").collect();
         if args.len() < 4 {
-            return (Box::new(None), PrepareResult::PrepareSyntaxErr);
+            return Err(PrepareSyntaxErr);
         }
-        match args[1].trim().parse::<u32>() {
-            Ok(id) => {
-                Statement {
-                    stmt_type: StatementType::StatementInsert,
-                    row_to_insert: Some(Row {
-                        id,
-                        username: String::from(args[2].trim()),
-                        email: String::from(args[3].trim()),
-                    }),
-                }
-            }
-            Err(e) => {
-                return (Box::new(None), PrepareResult::PrepareSyntaxErr);
-            }
-        }
+        let id = match args[1].trim().parse::<u32>() {
+            Ok(id) => id,
+            Err(_) => return Err(PrepareInvalidId),
+        };
+        let username = if args[2].trim().len() < USERNAME_SIZE {
+            String::from(args[2].trim())
+        } else {
+            return Err(PrepareStringTooLong);
+        };
+        let email = if args[3].trim().len() < EMAIL_SIZE {
+            String::from(args[3].trim())
+        } else {
+            return Err(PrepareStringTooLong);
+        };
+        Ok(Box::new(Some(Statement {
+            stmt_type: StatementType::StatementInsert,
+            row_to_insert: Some(Row {
+                id,
+                username,
+                email,
+            }),
+        })))
     } else if command.starts_with("select") {
-        Statement {
+        Ok(Box::new(Some(Statement {
             stmt_type: StatementType::StatementSelect,
             row_to_insert: None,
-        }
+        })))
     } else {
-        Statement {
-            stmt_type: StatementType::StatementUnsupported,
-            row_to_insert: None,
-        }
-    };
-
-    match stmt.stmt_type {
-        StatementType::StatementUnsupported =>
-            (Box::new(Some(stmt)), PrepareResult::PrepareUnrecognized),
-        _ => (Box::new(Some(stmt)), PrepareResult::PrepareSuccess)
+        Err(PrepareUnrecognized)
     }
 }
 

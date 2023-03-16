@@ -3,7 +3,7 @@ use std::io::Write;
 use std::process::exit;
 
 pub fn print_prompt() {
-    print!("Sqlite-rs > ");
+    print!("Sqlite-rs >");
     if io::stdout().flush().is_err() {
         println!("Stdout Error");
         exit(0x0100);
