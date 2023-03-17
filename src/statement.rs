@@ -1,6 +1,8 @@
-use crate::constant::{EMAIL_SIZE, ROWS_PER_PAGE, TABLE_MAX_ROWS, USERNAME_SIZE};
+use crate::constant::{EMAIL_SIZE, USERNAME_SIZE};
+use crate::cursor::Cursor;
 use crate::result::{ExecuteResult, PrepareResult};
-use crate::result::PrepareResult::{PrepareInvalidId, PrepareStringTooLong, PrepareSyntaxErr, PrepareUnrecognized};
+use crate::result::ExecuteResult::*;
+use crate::result::PrepareResult::*;
 use crate::row::Row;
 use crate::table::Table;
 
@@ -15,7 +17,6 @@ pub struct Statement {
     stmt_type: StatementType,
     row_to_insert: Option<Row>,
 }
-
 
 pub fn prepare_statement(command: &str) -> Result<Box<Option<Statement>>, PrepareResult> {
     if command.starts_with("insert") {
@@ -59,51 +60,41 @@ pub fn execute_statement(statement: Box<Option<Statement>>, table: &mut Table) -
     let stmt = statement.unwrap();
     match &stmt.stmt_type {
         StatementType::StatementInsert => execute_insert(&stmt, table),
-        StatementType::StatementSelect => execute_select(&stmt, table),
-        _ => ExecuteResult::ExecuteFail
+        StatementType::StatementSelect => execute_select(table),
+        _ => ExecuteFail
     }
 }
 
-unsafe fn row_mut_slot(table: &mut Table, row_num: usize) -> *mut Row {
-    let page = table.page_mut_slot(row_num / ROWS_PER_PAGE);
-    (*page).row_mut_slot(row_num % ROWS_PER_PAGE)
-}
-
-unsafe fn row_slot(table: &mut Table, row_num: usize) -> *const Row {
-    let page = table.page_slot(row_num / ROWS_PER_PAGE);
-    if page.is_null() {
-        return std::ptr::null();
-    }
-    (*page).row_slot(row_num % ROWS_PER_PAGE)
-}
-
-fn execute_insert(stmt: &Statement, table: &mut Table) -> ExecuteResult {
-    match stmt.row_to_insert.as_ref() {
+fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult {
+    match statement.row_to_insert.as_ref() {
         Some(row_to_insert) => {
-            if table.num_rows > TABLE_MAX_ROWS {
-                return ExecuteResult::ExecuteTableFull;
+            let (page_num, cell_num) = table.find(row_to_insert.id);
+            let page = table.pager.get_page(page_num);
+            if cell_num < page.leaf_node_num_cells() {
+                let key_at_index = page.leaf_node_key(cell_num);
+                if key_at_index == row_to_insert.id {
+                    return ExecuteDuplicateKey;
+                }
             }
-            unsafe {
-                let row = row_mut_slot(table, table.num_rows);
-                std::ptr::write(row, Row {
-                    id: (*row_to_insert).id,
-                    username: String::from((*row_to_insert).username.as_str()),
-                    email: String::from((*row_to_insert).email.as_str()),
-                });
-            }
-            table.num_rows += 1;
-            ExecuteResult::ExecuteSuccess
+            let mut cursor = Cursor {
+                table,
+                page_num,
+                cell_num,
+                end_of_table: false,
+            };
+            unsafe { cursor.leaf_node_insert((*row_to_insert).id, row_to_insert) };
+            ExecuteSuccess
         }
-        _ => ExecuteResult::ExecuteFail
+        _ => ExecuteFail
     }
 }
 
-fn execute_select(stmt: &Statement, table: &mut Table) -> ExecuteResult {
-    for i in 0..table.num_rows {
-        unsafe {
-            let row = row_slot(table, i);
-            println!("{}, {}, {}", (*row).id, (*row).username, (*row).email)
-        }
+fn execute_select(table: &mut Table) -> ExecuteResult {
+    let mut cursor = Cursor::table_start(table);
+    while !cursor.end_of_table {
+        let row = cursor.cursor_value();
+        println!("{}, {}, {}", (*row).id, (*row).username, (*row).email);
+        cursor.advance();
     }
-    ExecuteResult::ExecuteSuccess
+    ExecuteSuccess
 }

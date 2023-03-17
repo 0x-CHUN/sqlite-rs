@@ -4,4 +4,3 @@ pub struct Row {
     pub username: String,
     pub email: String,
 }
-
